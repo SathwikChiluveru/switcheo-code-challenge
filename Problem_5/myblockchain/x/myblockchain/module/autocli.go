@@ -1,9 +1,9 @@
-package hello
+package myblockchain
 
 import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 
-	modulev1 "hello/api/hello/hello"
+	modulev1 "myblockchain/api/myblockchain/myblockchain"
 )
 
 // AutoCLIOptions implements the autocli.HasAutoCLIConfig interface.
@@ -17,13 +17,6 @@ func (am AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 					Use:       "params",
 					Short:     "Shows the parameters of the module",
 				},
-				{
-					RpcMethod:      "SayHello",
-					Use:            "say-hello [name]",
-					Short:          "Query say-hello",
-					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "name"}},
-				},
-
 				// this line is used by ignite scaffolding # autocli/query
 			},
 		},
