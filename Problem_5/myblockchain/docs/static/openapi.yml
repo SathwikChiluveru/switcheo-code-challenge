@@ -19205,6 +19205,49 @@ paths:
               parameters.
       tags:
         - Msg
+  /myblockchain.myblockchain.Msg/CreateItem:
+    post:
+      operationId: MyblockchainMyblockchainMsg_CreateItem
+      responses:
+        '200':
+          description: A successful response.
+          schema:
+            type: object
+        default:
+          description: An unexpected error response.
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                format: int32
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    '@type':
+                      type: string
+                  additionalProperties: {}
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            properties:
+              creator:
+                type: string
+              id:
+                type: string
+              name:
+                type: string
+              details:
+                type: string
+      tags:
+        - Msg
   /myblockchain.myblockchain.Msg/UpdateParams:
     post:
       summary: |-
@@ -19253,10 +19296,7 @@ paths:
                   authority is the address that controls the module (defaults to
                   x/gov unless overwritten).
               params:
-                description: |-
-                  params defines the module parameters to update.
-
-                  NOTE: All parameters must be supplied.
+                description: 'NOTE: All parameters must be supplied.'
                 type: object
             description: MsgUpdateParams is the Msg/UpdateParams request type.
       tags:
@@ -27014,6 +27054,19 @@ definitions:
     description: |-
       Version defines the versioning scheme used to negotiate the IBC verison in
       the connection handshake.
+  myblockchain.myblockchain.MsgCreateItem:
+    type: object
+    properties:
+      creator:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      details:
+        type: string
+  myblockchain.myblockchain.MsgCreateItemResponse:
+    type: object
   myblockchain.myblockchain.MsgUpdateParams:
     type: object
     properties:
@@ -27023,10 +27076,7 @@ definitions:
           authority is the address that controls the module (defaults to x/gov
           unless overwritten).
       params:
-        description: |-
-          params defines the module parameters to update.
-
-          NOTE: All parameters must be supplied.
+        description: 'NOTE: All parameters must be supplied.'
         type: object
     description: MsgUpdateParams is the Msg/UpdateParams request type.
   myblockchain.myblockchain.MsgUpdateParamsResponse:

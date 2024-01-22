@@ -1,26 +1,21 @@
+// x/myblockchain/module.go
 package myblockchain
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
-	"cosmossdk.io/core/appmodule"
-	"cosmossdk.io/core/store"
-	"cosmossdk.io/depinject"
-	"cosmossdk.io/log"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
-	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	"github.com/cosmos/cosmos-sdk/x/auth/types"
+	"github.com/cosmos/cosmos-sdk/x/gov/types"
+	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/spf13/cobra"
 
-	// this line is used by starport scaffolding # 1
-
-	modulev1 "myblockchain/api/myblockchain/myblockchain/module"
 	"myblockchain/x/myblockchain/keeper"
 	"myblockchain/x/myblockchain/types"
 )
@@ -37,41 +32,30 @@ var (
 	_ appmodule.HasEndBlocker   = (*AppModule)(nil)
 )
 
-// ----------------------------------------------------------------------------
-// AppModuleBasic
-// ----------------------------------------------------------------------------
-
-// AppModuleBasic implements the AppModuleBasic interface that defines the
-// independent methods a Cosmos SDK module needs to implement.
 type AppModuleBasic struct {
 	cdc codec.BinaryCodec
+	AppModuleBasic
+	Keeper
 }
 
 func NewAppModuleBasic(cdc codec.BinaryCodec) AppModuleBasic {
 	return AppModuleBasic{cdc: cdc}
 }
 
-// Name returns the name of the module as a string.
 func (AppModuleBasic) Name() string {
 	return types.ModuleName
 }
 
-// RegisterLegacyAminoCodec registers the amino codec for the module, which is used
-// to marshal and unmarshal structs to/from []byte in order to persist them in the module's KVStore.
 func (AppModuleBasic) RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {}
 
-// RegisterInterfaces registers a module's interface types and their concrete implementations as proto.Message.
 func (a AppModuleBasic) RegisterInterfaces(reg cdctypes.InterfaceRegistry) {
 	types.RegisterInterfaces(reg)
 }
 
-// DefaultGenesis returns a default GenesisState for the module, marshalled to json.RawMessage.
-// The default GenesisState need to be defined by the module developer and is primarily used for testing.
 func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
 	return cdc.MustMarshalJSON(types.DefaultGenesis())
 }
 
-// ValidateGenesis used to validate the GenesisState, given in its json.RawMessage form.
 func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncodingConfig, bz json.RawMessage) error {
 	var genState types.GenesisState
 	if err := cdc.UnmarshalJSON(bz, &genState); err != nil {
@@ -80,21 +64,14 @@ func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncod
 	return genState.Validate()
 }
 
-// RegisterGRPCGatewayRoutes registers the gRPC Gateway routes for the module.
 func (AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *runtime.ServeMux) {
 	if err := types.RegisterQueryHandlerClient(context.Background(), mux, types.NewQueryClient(clientCtx)); err != nil {
 		panic(err)
 	}
 }
 
-// ----------------------------------------------------------------------------
-// AppModule
-// ----------------------------------------------------------------------------
-
-// AppModule implements the AppModule interface that defines the inter-dependent methods that modules need to implement
 type AppModule struct {
 	AppModuleBasic
-
 	keeper        keeper.Keeper
 	accountKeeper types.AccountKeeper
 	bankKeeper    types.BankKeeper
@@ -114,56 +91,54 @@ func NewAppModule(
 	}
 }
 
-// RegisterServices registers a gRPC query service to respond to the module-specific gRPC queries
 func (am AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
 	types.RegisterQueryServer(cfg.QueryServer(), am.keeper)
 }
 
-// RegisterInvariants registers the invariants of the module. If an invariant deviates from its predicted value, the InvariantRegistry triggers appropriate logic (most often the chain will be halted)
 func (am AppModule) RegisterInvariants(_ sdk.InvariantRegistry) {}
 
-// InitGenesis performs the module's genesis initialization. It returns no validator updates.
 func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, gs json.RawMessage) {
 	var genState types.GenesisState
-	// Initialize global index to index in genesis state
 	cdc.MustUnmarshalJSON(gs, &genState)
 
 	InitGenesis(ctx, am.keeper, genState)
 }
 
-// ExportGenesis returns the module's exported genesis state as raw JSON bytes.
 func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawMessage {
 	genState := ExportGenesis(ctx, am.keeper)
 	return cdc.MustMarshalJSON(genState)
 }
 
-// ConsensusVersion is a sequence number for state-breaking change of the module.
-// It should be incremented on each consensus-breaking change introduced by the module.
-// To avoid wrong/empty versions, the initial version should be set to 1.
 func (AppModule) ConsensusVersion() uint64 { return 1 }
 
-// BeginBlock contains the logic that is automatically triggered at the beginning of each block.
-// The begin block implementation is optional.
 func (am AppModule) BeginBlock(_ context.Context) error {
 	return nil
 }
 
-// EndBlock contains the logic that is automatically triggered at the end of each block.
-// The end block implementation is optional.
 func (am AppModule) EndBlock(_ context.Context) error {
 	return nil
 }
 
-// IsOnePerModuleType implements the depinject.OnePerModuleType interface.
 func (am AppModule) IsOnePerModuleType() {}
 
-// IsAppModule implements the appmodule.AppModule interface.
 func (am AppModule) IsAppModule() {}
 
-// ----------------------------------------------------------------------------
-// App Wiring Setup
-// ----------------------------------------------------------------------------
+func (am AppModule) RegisterRESTRoutes(ctx context.CLIContext, rtr *mux.Router) {
+	rtr.HandleFunc("/api/resource", am.CreateResourceHandler).Methods("POST")
+	rtr.HandleFunc("/api/resources", am.ListResourcesHandler).Methods("GET")
+	rtr.HandleFunc("/api/resource/{id}", am.GetResourceHandler).Methods("GET")
+	rtr.HandleFunc("/api/resource/{id}", am.UpdateResourceHandler).Methods("PUT")
+	rtr.HandleFunc("/api/resource/{id}", am.DeleteResourceHandler).Methods("DELETE")
+}
+
+func (am AppModule) GetTxCmd(*codec.Codec) *cobra.Command {
+	return nil
+}
+
+func (am AppModule) GetQueryCmd(*codec.Codec) *cobra.Command {
+	return nil
+}
 
 func init() {
 	appmodule.Register(
@@ -192,7 +167,6 @@ type ModuleOutputs struct {
 }
 
 func ProvideModule(in ModuleInputs) ModuleOutputs {
-	// default to governance authority if not provided
 	authority := authtypes.NewModuleAddress(govtypes.ModuleName)
 	if in.Config.Authority != "" {
 		authority = authtypes.NewModuleAddressOrBech32Address(in.Config.Authority)
@@ -211,4 +185,82 @@ func ProvideModule(in ModuleInputs) ModuleOutputs {
 	)
 
 	return ModuleOutputs{MyblockchainKeeper: k, Module: m}
+}
+
+// Handlers
+
+func (am AppModule) CreateResourceHandler(w http.ResponseWriter, r *http.Request) {
+	var resource types.Resource
+	err := json.NewDecoder(r.Body).Decode(&resource)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	err = am.keeper.CreateResource(ctx, resource.ID, resource.Name, resource.Details)
+	if err != nil {
+		http.Error(w, "Error creating resource", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (am AppModule) ListResourcesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	resources := am.keeper.GetAllResources(ctx)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resources)
+}
+
+func (am AppModule) GetResourceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	resourceID := vars["id"]
+
+	ctx := context.Background()
+	resource := am.keeper.GetResource(ctx, resourceID)
+	if resource == nil {
+		http.Error(w, "Resource not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resource)
+}
+
+func (am AppModule) UpdateResourceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	resourceID := vars["id"]
+
+	var updatedResource types.Resource
+	err := json.NewDecoder(r.Body).Decode(&updatedResource)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	err = am.keeper.UpdateResource(ctx, resourceID, updatedResource.Name, updatedResource.Details)
+	if err != nil {
+		http.Error(w, "Error updating resource", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (am AppModule) DeleteResourceHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	resourceID := vars["id"]
+
+	ctx := context.Background()
+	err := am.keeper.DeleteResource(ctx, resourceID)
+	if err != nil {
+		http.Error(w, "Error deleting resource", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

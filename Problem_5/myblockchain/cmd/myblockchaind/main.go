@@ -5,6 +5,7 @@ import (
 	"os"
 
 	svrcmd "github.com/cosmos/cosmos-sdk/server/cmd"
+	"github.com/cosmos/cosmos-sdk/types/codec"
 
 	"myblockchain/app"
 	"myblockchain/cmd/myblockchaind/cmd"
