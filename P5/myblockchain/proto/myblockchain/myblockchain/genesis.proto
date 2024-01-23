@@ -1,0 +1,17 @@
+syntax = "proto3";
+package myblockchain.myblockchain;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "myblockchain/myblockchain/params.proto";
+
+option go_package = "myblockchain/x/myblockchain/types";
+
+// GenesisState defines the myblockchain module's genesis state.
+message GenesisState {
+  // params defines all the parameters of the module.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
